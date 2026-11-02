@@ -3,7 +3,7 @@
 BPMN 2.0, the default Work Process design format, a technology of
 [xmip-core-process](https://github.com/IlleNilsson/xmip-core-process)
 (ADR-0066, amendment 2026-10-22). The owner, 2026-10-22: *there are BPEL
-solutions out there, no need to invent the wheel unless we have to*, *go with
+solutions out there, no need to reinvent the wheel unless we have to*, *go with
 the best functionality agreeing with Xmip licensing*, and of BPMN 2.0, *It can
 not be the only choice, just the default one.*
 
