@@ -120,15 +120,11 @@ pub fn read(text: &str) -> Result<Element, String> {
                     return Ok(root);
                 }
             }
-            Event::Text(text) => {
-                if let Some(current) = open.last_mut() {
-                    current.text.push_str(&text.xml10_content());
-                }
+            Event::Text(text) if let Some(current) = open.last_mut() => {
+                current.text.push_str(&text.xml10_content());
             }
-            Event::CData(data) => {
-                if let Some(current) = open.last_mut() {
-                    current.text.push_str(&data.xml10_content());
-                }
+            Event::CData(data) if let Some(current) = open.last_mut() => {
+                current.text.push_str(&data.xml10_content());
             }
             Event::GeneralRef(reference) => {
                 let name = reference.into_inner();
@@ -145,7 +141,12 @@ pub fn read(text: &str) -> Result<Element, String> {
                 ));
             }
             Event::Eof => return Err("the document ends before its root element".to_string()),
-            Event::Comment(_) | Event::Decl(_) | Event::PI(_) => {}
+            // Text outside every element, and what a design never means.
+            Event::Text(_)
+            | Event::CData(_)
+            | Event::Comment(_)
+            | Event::Decl(_)
+            | Event::PI(_) => {}
         }
     }
 }
