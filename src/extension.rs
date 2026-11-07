@@ -146,10 +146,7 @@ pub fn assignments(task: &Element) -> Vec<Assignment> {
 /// What an assignment's `from` is: a literal as the expression language
 /// spells one, else the context name it reads.
 fn source(from: &str) -> AssignmentValue {
-    if let Some(text) = from
-        .strip_prefix('\'')
-        .and_then(|rest| rest.strip_suffix('\''))
-    {
+    if let Some(text) = from.strip_circumfix('\'', '\'') {
         return AssignmentValue::Literal(ScalarValue::Text(text.replace("''", "'")));
     }
     match literal(from) {
