@@ -1,6 +1,7 @@
 //! A BPMN 2.0 design compiled, run and refused: the fixture design
 //! `design/order-approval.bpmn` and designs written here for each refusal.
 
+use std::assert_matches;
 use std::cell::RefCell;
 
 use process::program::{Due, Ending, Step, Work};
@@ -75,16 +76,17 @@ fn the_order_approval_design_compiles_to_its_steps() {
     };
     assert_eq!(branches[0].condition, "Amount > 1000");
     assert!(otherwise.is_some(), "the default flow is the otherwise");
-    assert!(matches!(
+    assert_matches!(
         step("Approve"),
         Step::Call {
             work: Work::Assign(_),
             ..
         }
-    ));
-    assert!(matches!(step("Approval"), Step::Wait { .. }));
-    assert!(
-        matches!(step("Escalated"), Step::End { ending: Ending::Error { code } } if code == "late")
+    );
+    assert_matches!(step("Approval"), Step::Wait { .. });
+    assert_matches!(
+        step("Escalated"),
+        Step::End { ending: Ending::Error { code } } if code == "late"
     );
     let late = &program
         .scopes
@@ -133,14 +135,12 @@ fn the_compiled_design_runs_a_small_order_and_catches_a_declined_one() {
         }],
     };
     let acts = flow.advance(&mut small, &checked, 0).expect("checked");
-    assert!(
-        matches!(
-            acts[0],
-            Act::Work {
-                work: Work::Assign(_),
-                ..
-            }
-        ),
+    assert_matches!(
+        acts[0],
+        Act::Work {
+            work: Work::Assign(_),
+            ..
+        },
         "{acts:?}"
     );
     let mut declined = Instance::new();
