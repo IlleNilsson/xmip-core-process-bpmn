@@ -41,8 +41,9 @@ schema; any other location naming a network resource, and any `bpmn:import`
 of one, is refused before anything is asked; a document type declaration is
 refused. Nothing here opens a connection.
 
-**The XML reader is quick-xml** 0.42 (MIT), with no default features; its one
-dependency is memchr (MIT or Unlicense). Neither holds network code.
+**The XML reader is the estate's one**, `codec::xml::tree` in
+`xmip-core-library-codec`, which resolves every namespace and says where each
+element lies (ADR-0066, amendment 2026-11-13). It holds no network code.
 
 `diagram` reads the design as the VS Code designer draws it and `edit` makes
 its edits as text splices, so a design's foreign extensions and comments are
