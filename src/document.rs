@@ -2,13 +2,17 @@
 //! its attributes, its text and where it stands in the bytes, so the
 //! compiler reads a tree and a designer's edit can be placed exactly.
 //!
-//! Read with quick-xml's namespace-resolving pull parser. A namespace is a
-//! name, compared and never fetched; a document type declaration is
-//! refused, so no entity of anyone else's is ever expanded or asked for.
+//! Read with the estate's one XML reader, `codec::xml::tree`, which
+//! resolves every namespace as an element opens. A namespace is a name,
+//! compared and never fetched; a document type declaration is refused, so
+//! no entity of anyone else's is ever expanded or asked for. The namespaces
+//! an element declares stand first among its attributes, as `xmlns` or in
+//! the `xmlns` namespace, where the editor looks for a prefix.
 
-use quick_xml::NsReader;
-use quick_xml::events::{BytesStart, Event};
-use quick_xml::name::ResolveResult;
+use codec::xml::tree::{Document, Node};
+
+/// The namespace a namespace declaration is in (Namespaces in XML 1.0).
+const XMLNS: &str = "http://www.w3.org/2000/xmlns/";
 
 /// One element.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -86,114 +90,37 @@ impl Element {
 /// The text is not well-formed XML, holds a document type declaration, or
 /// names a prefix it never bound — each said with where.
 pub fn read(text: &str) -> Result<Element, String> {
-    let mut reader = NsReader::from_str(text);
-    let mut open: Vec<Element> = Vec::new();
-    loop {
-        let before = usize::try_from(reader.buffer_position()).unwrap_or(usize::MAX);
-        let (resolved, event) = reader
-            .read_resolved_event()
-            .map_err(|why| format!("at byte {before}: {why}"))?;
-        let namespace = namespace_of(&resolved, before)?;
-        let after = usize::try_from(reader.buffer_position()).unwrap_or(usize::MAX);
-        match event {
-            Event::Start(start) => {
-                let mut started = element(&reader, &start, namespace, before)?;
-                started.open_end = after;
-                open.push(started);
-            }
-            Event::Empty(start) => {
-                let mut empty = element(&reader, &start, namespace, before)?;
-                empty.end = after;
-                empty.open_end = after;
-                empty.close_start = after;
-                if let Some(done) = close(&mut open, empty) {
-                    return Ok(done);
-                }
-            }
-            Event::End(_) => {
-                let Some(mut done) = open.pop() else {
-                    return Err(format!("at byte {before}: an end with no start"));
-                };
-                done.end = after;
-                done.close_start = before;
-                if let Some(root) = close(&mut open, done) {
-                    return Ok(root);
-                }
-            }
-            Event::Text(text) if let Some(current) = open.last_mut() => {
-                current.text.push_str(&text.xml10_content());
-            }
-            Event::CData(data) if let Some(current) = open.last_mut() => {
-                current.text.push_str(&data.xml10_content());
-            }
-            Event::GeneralRef(reference) => {
-                let name = reference.into_inner();
-                let read = codec::xml::unescape(&format!("&{name};"))
-                    .map_err(|why| format!("at byte {before}: {why}"))?;
-                if let Some(current) = open.last_mut() {
-                    current.text.push_str(&read);
-                }
-            }
-            Event::DocType(_) => {
-                return Err(format!(
-                    "at byte {before}: a document type declaration, which a BPMN design \
-                     never needs and Xmip never reads"
-                ));
-            }
-            Event::Eof => return Err("the document ends before its root element".to_string()),
-            // Text outside every element, and what a design never means.
-            Event::Text(_)
-            | Event::CData(_)
-            | Event::Comment(_)
-            | Event::Decl(_)
-            | Event::PI(_) => {}
+    let document = Document::parse(text)
+        .map_err(|refused| format!("at byte {}: {}", refused.at, refused.message))?;
+    Ok(element(document.root_element()))
+}
+
+/// The element `node` is, with every element inside it.
+fn element(node: Node<'_>) -> Element {
+    let declared = node.declarations().map(|(prefix, namespace)| {
+        if prefix.is_empty() {
+            (String::new(), "xmlns".to_string(), namespace.to_string())
+        } else {
+            (XMLNS.to_string(), prefix.to_string(), namespace.to_string())
         }
+    });
+    let attributes = node.attributes().map(|attribute| {
+        (
+            attribute.namespace().unwrap_or("").to_string(),
+            attribute.local().to_string(),
+            attribute.value().to_string(),
+        )
+    });
+    let range = node.range();
+    Element {
+        namespace: node.namespace().unwrap_or("").to_string(),
+        name: node.local().to_string(),
+        attributes: declared.chain(attributes).collect(),
+        children: node.elements().map(element).collect(),
+        text: node.texts().collect(),
+        start: range.start,
+        end: range.end,
+        open_end: node.open_end(),
+        close_start: node.close_start(),
     }
-}
-
-/// `done` added to the element it stands in, or returned where it is the
-/// root.
-fn close(open: &mut [Element], done: Element) -> Option<Element> {
-    match open.last_mut() {
-        Some(parent) => {
-            parent.children.push(done);
-            None
-        }
-        None => Some(done),
-    }
-}
-
-fn namespace_of(resolved: &ResolveResult<'_>, at: usize) -> Result<String, String> {
-    match resolved {
-        ResolveResult::Bound(namespace) => Ok(namespace.0.to_string()),
-        ResolveResult::Unbound => Ok(String::new()),
-        ResolveResult::Unknown(prefix) => Err(format!(
-            "at byte {at}: the prefix '{prefix}' is bound to no namespace"
-        )),
-    }
-}
-
-fn element(
-    reader: &NsReader<&[u8]>,
-    start: &BytesStart<'_>,
-    namespace: String,
-    at: usize,
-) -> Result<Element, String> {
-    let mut attributes = Vec::new();
-    for attribute in start.attributes() {
-        let attribute = attribute.map_err(|why| format!("at byte {at}: {why}"))?;
-        let (resolved, local) = reader.resolver().resolve_attribute(attribute.key);
-        let space = namespace_of(&resolved, at)?;
-        let value = attribute
-            .normalized_value(quick_xml::XmlVersion::Implicit1_0)
-            .map_err(|why| format!("at byte {at}: {why}"))?;
-        attributes.push((space, local.as_ref().to_string(), value.into_owned()));
-    }
-    Ok(Element {
-        namespace,
-        name: start.local_name().as_ref().to_string(),
-        attributes,
-        start: at,
-        ..Element::default()
-    })
 }
