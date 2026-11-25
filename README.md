@@ -21,7 +21,16 @@ written in Xmip's expression language, `language="urn:xmip:expression"`.
 assignments, service, send and receive tasks, message and timer catch
 events, message throw events, exclusive and parallel gateways, embedded
 subprocesses, and interrupting timer and error boundary events — try and
-catch. **What it refuses, in words naming the element**: compensation,
+catch. **Data objects are the Instance's own values** (ADR-0066, amendment
+2026-11-25): each `dataObject`, anywhere in the process, declares one by its
+name, and a task whose `dataOutputAssociation` targets a data object or a
+`dataObjectReference` to one keeps it, its `assignment`'s `from` a value in
+Xmip's expression language computed over the current Message and the values
+kept, its `to` the data object's name; a task with no such target assigns the
+Message's context, a new Message generation, and a task does one or the other
+(`compile/data.rs`). A condition naming a data object reads the Instance's
+value, so a flow loops back to its wait until a count is reached.
+**What it refuses, in words naming the element**: compensation,
 transactions and cancel events; user and manual tasks; business-rule and
 script tasks; call activities; inclusive, complex and event-based gateways;
 signal, escalation, conditional and link events; event subprocesses; loops
@@ -47,5 +56,9 @@ element lies (ADR-0066, amendment 2026-11-13). It holds no network code.
 
 `diagram` reads the design as the VS Code designer draws it and `edit` makes
 its edits as text splices, so a design's foreign extensions and comments are
-kept as written. Its tests (`tests/`) compile the fixture design, run it, and
-refuse each element and every remote reference.
+kept as written. Its tests (`tests/`) compile the fixture designs, run them,
+and refuse each element and every remote reference: `order-in-parts.bpmn`,
+an order delivered in parts, keeps what was ordered, delivered and accepted,
+takes the client's accept, refuse and return, loops back to its wait until
+every line is accepted, and is raised overdue thirty days after the order
+(`order_in_parts.rs`).

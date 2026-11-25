@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+    xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+    xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+    xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+    xmlns:xmip="urn:xmip:process:1"
+    id="Definitions" targetNamespace="urn:example:orders">
+  <bpmn:error id="Overdue" errorCode="overdue"/>
+  <bpmn:process id="OrderInParts" name="Order in parts" isExecutable="true">
+    <bpmn:dataObject id="OrderedData" name="Ordered"/>
+    <bpmn:dataObject id="DeliveredData" name="Delivered"/>
+    <bpmn:dataObject id="AcceptedData" name="Accepted"/>
+    <bpmn:dataObjectReference id="OrderedRef" dataObjectRef="OrderedData"/>
+    <bpmn:dataObjectReference id="DeliveredRef" dataObjectRef="DeliveredData"/>
+    <bpmn:dataObjectReference id="AcceptedRef" dataObjectRef="AcceptedData"/>
+    <bpmn:startEvent id="Received" name="Order received">
+      <bpmn:extensionElements>
+        <xmip:correlate correlation="Order"/>
+      </bpmn:extensionElements>
+      <bpmn:messageEventDefinition/>
+    </bpmn:startEvent>
+    <bpmn:task id="Note" name="Note the order">
+      <bpmn:dataOutputAssociation id="NoteOrdered">
+        <bpmn:targetRef>OrderedRef</bpmn:targetRef>
+        <bpmn:assignment>
+          <bpmn:from language="urn:xmip:expression">Lines</bpmn:from>
+          <bpmn:to>Ordered</bpmn:to>
+        </bpmn:assignment>
+      </bpmn:dataOutputAssociation>
+      <bpmn:dataOutputAssociation id="NoteDelivered">
+        <bpmn:targetRef>DeliveredRef</bpmn:targetRef>
+        <bpmn:assignment>
+          <bpmn:from language="urn:xmip:expression">0</bpmn:from>
+          <bpmn:to>Delivered</bpmn:to>
+        </bpmn:assignment>
+      </bpmn:dataOutputAssociation>
+      <bpmn:dataOutputAssociation id="NoteAccepted">
+        <bpmn:targetRef>AcceptedRef</bpmn:targetRef>
+        <bpmn:assignment>
+          <bpmn:from language="urn:xmip:expression">0</bpmn:from>
+          <bpmn:to>Accepted</bpmn:to>
+        </bpmn:assignment>
+      </bpmn:dataOutputAssociation>
+    </bpmn:task>
+    <bpmn:subProcess id="Deliver" name="Deliver in parts">
+      <bpmn:startEvent id="Begin"/>
+      <bpmn:exclusiveGateway id="Again"/>
+      <bpmn:receiveTask id="Wait" name="Wait for a delivery or the client's answer">
+        <bpmn:extensionElements>
+          <xmip:correlate correlation="Order"/>
+        </bpmn:extensionElements>
+      </bpmn:receiveTask>
+      <bpmn:exclusiveGateway id="Which" name="Delivery or answer?" default="Other"/>
+      <bpmn:task id="CountDelivery" name="Count the delivery">
+        <bpmn:dataOutputAssociation id="Delivered">
+          <bpmn:targetRef>DeliveredRef</bpmn:targetRef>
+          <bpmn:assignment>
+            <bpmn:from language="urn:xmip:expression">Delivered + Lines</bpmn:from>
+            <bpmn:to>Delivered</bpmn:to>
+          </bpmn:assignment>
+        </bpmn:dataOutputAssociation>
+      </bpmn:task>
+      <bpmn:task id="CountAccepted" name="Count the acceptance">
+        <bpmn:dataOutputAssociation id="Accepted">
+          <bpmn:targetRef>AcceptedRef</bpmn:targetRef>
+          <bpmn:assignment>
+            <bpmn:from language="urn:xmip:expression">Accepted + Lines</bpmn:from>
+            <bpmn:to>Accepted</bpmn:to>
+          </bpmn:assignment>
+        </bpmn:dataOutputAssociation>
+      </bpmn:task>
+      <bpmn:task id="TakeRefused" name="Take the refused back">
+        <bpmn:dataOutputAssociation id="Refused">
+          <bpmn:targetRef>DeliveredRef</bpmn:targetRef>
+          <bpmn:assignment>
+            <bpmn:from language="urn:xmip:expression">Delivered - Lines</bpmn:from>
+            <bpmn:to>Delivered</bpmn:to>
+          </bpmn:assignment>
+        </bpmn:dataOutputAssociation>
+      </bpmn:task>
+      <bpmn:sendTask id="Redeliver" name="Deliver again"/>
+      <bpmn:task id="TakeReturned" name="Take the return back">
+        <bpmn:dataOutputAssociation id="ReturnedDelivered">
+          <bpmn:targetRef>DeliveredRef</bpmn:targetRef>
+          <bpmn:assignment>
+            <bpmn:from language="urn:xmip:expression">Delivered - Lines</bpmn:from>
+            <bpmn:to>Delivered</bpmn:to>
+          </bpmn:assignment>
+        </bpmn:dataOutputAssociation>
+        <bpmn:dataOutputAssociation id="ReturnedAccepted">
+          <bpmn:targetRef>AcceptedRef</bpmn:targetRef>
+          <bpmn:assignment>
+            <bpmn:from language="urn:xmip:expression">Accepted - Lines</bpmn:from>
+            <bpmn:to>Accepted</bpmn:to>
+          </bpmn:assignment>
+        </bpmn:dataOutputAssociation>
+      </bpmn:task>
+      <bpmn:sendTask id="Credit" name="Credit the return"/>
+      <bpmn:exclusiveGateway id="Done" name="Every line accepted?" default="NotYet"/>
+      <bpmn:endEvent id="AllAccepted" name="Every line accepted"/>
+      <bpmn:sequenceFlow id="D1" sourceRef="Begin" targetRef="Again"/>
+      <bpmn:sequenceFlow id="D2" sourceRef="Again" targetRef="Wait"/>
+      <bpmn:sequenceFlow id="D3" sourceRef="Wait" targetRef="Which"/>
+      <bpmn:sequenceFlow id="IsDelivery" sourceRef="Which" targetRef="CountDelivery">
+        <bpmn:conditionExpression language="urn:xmip:expression">MessageType = 'Delivery'</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="IsAccept" sourceRef="Which" targetRef="CountAccepted">
+        <bpmn:conditionExpression language="urn:xmip:expression">MessageType = 'Answer' and Answer = 'accept'</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="IsRefuse" sourceRef="Which" targetRef="TakeRefused">
+        <bpmn:conditionExpression language="urn:xmip:expression">MessageType = 'Answer' and Answer = 'refuse'</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="IsReturn" sourceRef="Which" targetRef="TakeReturned">
+        <bpmn:conditionExpression language="urn:xmip:expression">MessageType = 'Answer' and Answer = 'return'</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Other" sourceRef="Which" targetRef="Done"/>
+      <bpmn:sequenceFlow id="D4" sourceRef="CountDelivery" targetRef="Done"/>
+      <bpmn:sequenceFlow id="D5" sourceRef="CountAccepted" targetRef="Done"/>
+      <bpmn:sequenceFlow id="D6" sourceRef="TakeRefused" targetRef="Redeliver"/>
+      <bpmn:sequenceFlow id="D7" sourceRef="Redeliver" targetRef="Done"/>
+      <bpmn:sequenceFlow id="D8" sourceRef="TakeReturned" targetRef="Credit"/>
+      <bpmn:sequenceFlow id="D9" sourceRef="Credit" targetRef="Done"/>
+      <bpmn:sequenceFlow id="Finished" sourceRef="Done" targetRef="AllAccepted">
+        <bpmn:conditionExpression language="urn:xmip:expression">Accepted &gt;= Ordered</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="NotYet" sourceRef="Done" targetRef="Again"/>
+    </bpmn:subProcess>
+    <bpmn:boundaryEvent id="Late" name="Thirty days" attachedToRef="Deliver">
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>P30D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="Raised" name="Raised overdue">
+      <bpmn:errorEventDefinition errorRef="Overdue"/>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="Confirm" name="Confirm the order"/>
+    <bpmn:endEvent id="Closed" name="Order closed"/>
+    <bpmn:sequenceFlow id="F1" sourceRef="Received" targetRef="Note"/>
+    <bpmn:sequenceFlow id="F2" sourceRef="Note" targetRef="Deliver"/>
+    <bpmn:sequenceFlow id="F3" sourceRef="Deliver" targetRef="Confirm"/>
+    <bpmn:sequenceFlow id="F4" sourceRef="Confirm" targetRef="Closed"/>
+    <bpmn:sequenceFlow id="F5" sourceRef="Late" targetRef="Raised"/>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram">
+    <bpmndi:BPMNPlane id="Plane" bpmnElement="OrderInParts">
+      <bpmndi:BPMNShape id="Received_di" bpmnElement="Received">
+        <dc:Bounds x="40" y="262" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Note_di" bpmnElement="Note">
+        <dc:Bounds x="110" y="240" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="OrderedRef_di" bpmnElement="OrderedRef">
+        <dc:Bounds x="110" y="80" width="36" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DeliveredRef_di" bpmnElement="DeliveredRef">
+        <dc:Bounds x="170" y="80" width="36" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="AcceptedRef_di" bpmnElement="AcceptedRef">
+        <dc:Bounds x="230" y="80" width="36" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Deliver_di" bpmnElement="Deliver" isExpanded="true">
+        <dc:Bounds x="250" y="150" width="900" height="340"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Begin_di" bpmnElement="Begin">
+        <dc:Bounds x="270" y="262" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Again_di" bpmnElement="Again" isMarkerVisible="true">
+        <dc:Bounds x="340" y="255" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Wait_di" bpmnElement="Wait">
+        <dc:Bounds x="420" y="240" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Which_di" bpmnElement="Which" isMarkerVisible="true">
+        <dc:Bounds x="550" y="255" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CountDelivery_di" bpmnElement="CountDelivery">
+        <dc:Bounds x="640" y="160" width="100" height="60"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CountAccepted_di" bpmnElement="CountAccepted">
+        <dc:Bounds x="640" y="240" width="100" height="60"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TakeRefused_di" bpmnElement="TakeRefused">
+        <dc:Bounds x="640" y="320" width="100" height="60"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Redeliver_di" bpmnElement="Redeliver">
+        <dc:Bounds x="780" y="320" width="100" height="60"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="TakeReturned_di" bpmnElement="TakeReturned">
+        <dc:Bounds x="640" y="400" width="100" height="60"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Credit_di" bpmnElement="Credit">
+        <dc:Bounds x="780" y="400" width="100" height="60"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Done_di" bpmnElement="Done" isMarkerVisible="true">
+        <dc:Bounds x="920" y="255" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="AllAccepted_di" bpmnElement="AllAccepted">
+        <dc:Bounds x="1060" y="262" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Late_di" bpmnElement="Late">
+        <dc:Bounds x="682" y="472" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Raised_di" bpmnElement="Raised">
+        <dc:Bounds x="682" y="560" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Confirm_di" bpmnElement="Confirm">
+        <dc:Bounds x="1200" y="240" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Closed_di" bpmnElement="Closed">
+        <dc:Bounds x="1350" y="262" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F1_di" bpmnElement="F1">
+        <di:waypoint x="76" y="280"/>
+        <di:waypoint x="110" y="280"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F2_di" bpmnElement="F2">
+        <di:waypoint x="210" y="280"/>
+        <di:waypoint x="250" y="280"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="D1_di" bpmnElement="D1">
+        <di:waypoint x="306" y="280"/>
+        <di:waypoint x="340" y="280"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="D2_di" bpmnElement="D2">
+        <di:waypoint x="390" y="280"/>
+        <di:waypoint x="420" y="280"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="D3_di" bpmnElement="D3">
+        <di:waypoint x="520" y="280"/>
+        <di:waypoint x="550" y="280"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IsDelivery_di" bpmnElement="IsDelivery">
+        <di:waypoint x="575" y="255"/>
+        <di:waypoint x="575" y="190"/>
+        <di:waypoint x="640" y="190"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IsAccept_di" bpmnElement="IsAccept">
+        <di:waypoint x="600" y="275"/>
+        <di:waypoint x="640" y="270"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IsRefuse_di" bpmnElement="IsRefuse">
+        <di:waypoint x="575" y="305"/>
+        <di:waypoint x="575" y="350"/>
+        <di:waypoint x="640" y="350"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="IsReturn_di" bpmnElement="IsReturn">
+        <di:waypoint x="575" y="305"/>
+        <di:waypoint x="575" y="430"/>
+        <di:waypoint x="640" y="430"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Other_di" bpmnElement="Other">
+        <di:waypoint x="575" y="255"/>
+        <di:waypoint x="575" y="170"/>
+        <di:waypoint x="945" y="170"/>
+        <di:waypoint x="945" y="255"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="D4_di" bpmnElement="D4">
+        <di:waypoint x="740" y="190"/>
+        <di:waypoint x="945" y="190"/>
+        <di:waypoint x="945" y="255"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="D5_di" bpmnElement="D5">
+        <di:waypoint x="740" y="270"/>
+        <di:waypoint x="920" y="280"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="D6_di" bpmnElement="D6">
+        <di:waypoint x="740" y="350"/>
+        <di:waypoint x="780" y="350"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="D7_di" bpmnElement="D7">
+        <di:waypoint x="880" y="350"/>
+        <di:waypoint x="945" y="350"/>
+        <di:waypoint x="945" y="305"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="D8_di" bpmnElement="D8">
+        <di:waypoint x="740" y="430"/>
+        <di:waypoint x="780" y="430"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="D9_di" bpmnElement="D9">
+        <di:waypoint x="880" y="430"/>
+        <di:waypoint x="945" y="430"/>
+        <di:waypoint x="945" y="305"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Finished_di" bpmnElement="Finished">
+        <di:waypoint x="970" y="280"/>
+        <di:waypoint x="1060" y="280"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="NotYet_di" bpmnElement="NotYet">
+        <di:waypoint x="945" y="305"/>
+        <di:waypoint x="945" y="470"/>
+        <di:waypoint x="365" y="470"/>
+        <di:waypoint x="365" y="305"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F3_di" bpmnElement="F3">
+        <di:waypoint x="1150" y="280"/>
+        <di:waypoint x="1200" y="280"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F4_di" bpmnElement="F4">
+        <di:waypoint x="1300" y="280"/>
+        <di:waypoint x="1350" y="280"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F5_di" bpmnElement="F5">
+        <di:waypoint x="700" y="508"/>
+        <di:waypoint x="700" y="560"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

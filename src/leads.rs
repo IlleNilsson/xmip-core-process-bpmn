@@ -182,6 +182,7 @@ fn with_next(step: Step, next: u32) -> Step {
     match step {
         Step::Start { .. } => Step::Start { next },
         Step::Call { work, .. } => Step::Call { work, next },
+        Step::Keep { values, .. } => Step::Keep { values, next },
         Step::Publish { .. } => Step::Publish { next },
         Step::Wait { .. } => Step::Wait { next },
         Step::Batch { most, within, .. } => Step::Batch { most, within, next },

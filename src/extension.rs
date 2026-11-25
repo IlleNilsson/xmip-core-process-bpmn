@@ -131,7 +131,15 @@ pub fn batch(at: &Element, batch: &Element) -> Result<(u32, Option<Due>), Refusa
 /// `to` a context name, each `from` a literal or a context name.
 pub fn assignments(task: &Element) -> Vec<Assignment> {
     task.children_named(MODEL, "dataOutputAssociation")
-        .flat_map(|association| association.children_named(MODEL, "assignment"))
+        .flat_map(assigned)
+        .collect()
+}
+
+/// The assignments of one data output association, as [`assignments`]
+/// reads them.
+pub fn assigned(association: &Element) -> Vec<Assignment> {
+    association
+        .children_named(MODEL, "assignment")
         .filter_map(|assignment| {
             let from = assignment.child(MODEL, "from")?.text.trim().to_string();
             let to = assignment.child(MODEL, "to")?.text.trim().to_string();
@@ -139,6 +147,38 @@ pub fn assignments(task: &Element) -> Vec<Assignment> {
                 target_key: to,
                 value: source(&from),
             })
+        })
+        .collect()
+}
+
+/// What each assignment of `association`, which targets a data object,
+/// computes its value from: its `from`, a value in Xmip's expression
+/// language, and its `to`, empty where it names none (ADR-0066, amendment
+/// 2026-11-25).
+///
+/// # Errors
+/// An assignment with no `from`, or a `from` written in another language.
+pub fn computed(at: &Element, association: &Element) -> Result<Vec<(String, String)>, Refusal> {
+    association
+        .children_named(MODEL, "assignment")
+        .map(|assignment| {
+            let Some(from) = assignment.child(MODEL, "from") else {
+                return Err(Refusal::new(
+                    at.label(),
+                    "an assignment it keeps has no from",
+                ));
+            };
+            if let Some(language) = from.attribute("language")
+                && language != EXPRESSION
+            {
+                let why = format!("a value it keeps is in '{language}'; Xmip reads '{EXPRESSION}'");
+                return Err(Refusal::new(at.label(), why));
+            }
+            let to = assignment
+                .child(MODEL, "to")
+                .map(|to| to.text.trim().to_string())
+                .unwrap_or_default();
+            Ok((from.text.trim().to_string(), to))
         })
         .collect()
 }

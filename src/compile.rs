@@ -5,9 +5,10 @@
 
 use std::collections::{HashMap, HashSet};
 
+mod data;
 mod shapes;
 
-use process::program::{Node, Program, Scope, Step, Work};
+use process::program::{Node, Program, Scope, Step};
 use process::{LocalResources, Refusal};
 
 use crate::document::{self, Element};
@@ -88,6 +89,12 @@ pub(crate) struct Builder<'d> {
     starts: Vec<u32>,
     /// The Correlations its steps follow, in the order first named.
     sets: Vec<String>,
+    /// The values its Instances keep, one a data object, in document order.
+    values: Vec<String>,
+    /// Each data object's value, by the object's identifier.
+    data: HashMap<&'d str, u32>,
+    /// The data object each reference names, by the reference's identifier.
+    references: HashMap<&'d str, &'d str>,
     pub(crate) refusals: Vec<Refusal>,
 }
 
@@ -117,11 +124,15 @@ impl<'d> Builder<'d> {
             inner_start: HashMap::new(),
             starts: Vec::new(),
             sets: Vec::new(),
+            values: Vec::new(),
+            data: HashMap::new(),
+            references: HashMap::new(),
             refusals: Vec::new(),
         }
     }
 
-    /// Every sequence flow and boundary attachment, at every depth.
+    /// Every sequence flow, boundary attachment and data object, at every
+    /// depth.
     fn gather(&mut self, container: &'d Element) {
         for child in container.children.iter().filter(|c| c.namespace == MODEL) {
             match child.name.as_str() {
@@ -144,6 +155,8 @@ impl<'d> Builder<'d> {
                     }
                     self.boundary.push(child);
                 }
+                "dataObject" => self.data_object(child),
+                "dataObjectReference" => self.data_reference(child),
                 "subProcess" => self.gather(child),
                 _ => {}
             }
@@ -204,16 +217,7 @@ impl<'d> Builder<'d> {
         let shape = match element.name.as_str() {
             "startEvent" => self.start(element, container, inner),
             "endEvent" => self.end(element, container, inner),
-            "task" => Some(match extension::assignments(element) {
-                assignments if assignments.is_empty() => pass(),
-                assignments => (
-                    Step::Call {
-                        work: Work::Assign(assignments),
-                        next: 0,
-                    },
-                    Lead::Out(id),
-                ),
-            }),
+            "task" => self.task(element),
             "serviceTask" => self.service(element),
             "sendTask" => Some((Step::Publish { next: 0 }, Lead::Out(id))),
             "receiveTask" => self.receive(element),
@@ -288,6 +292,7 @@ impl<'d> Builder<'d> {
             scopes: self.scopes,
             starts: self.starts,
             sets: self.sets,
+            values: self.values,
         }
     }
 }

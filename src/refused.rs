@@ -109,8 +109,9 @@ pub const READ: [&str; 15] = [
     "documentation",
 ];
 
-/// What a process may hold that does not run and is left as drawn: data,
-/// notes, lanes and what the diagram groups.
+/// What a process may hold that is no step and is left as drawn: data —
+/// whose data objects declare the values an Instance keeps
+/// (`crate::compile`'s `data`) — notes, lanes and what the diagram groups.
 pub const KEPT: [&str; 11] = [
     "dataObject",
     "dataObjectReference",
