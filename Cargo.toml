@@ -1,11 +1,11 @@
 [package]
 name = "xmip-core-process-bpmn"
-version = "0.1.0"
-edition = "2024"
-license = "AGPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 repository = "https://github.com/IlleNilsson/xmip-core-process-bpmn"
 description = "BPMN 2.0 Work Process design format: a diagram with its BPMN DI, read offline against the schemas it ships, compiled to the one Work Process program. A xmip-core-process technology."
-publish = false
+publish.workspace = true
 
 [dependencies]
 process = { package = "xmip-core-process", git = "https://github.com/IlleNilsson/xmip-core-process", branch = "main" }
@@ -21,3 +21,5 @@ serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 serde_json = "1"
+
+[lints]
