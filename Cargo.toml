@@ -8,14 +8,17 @@ description = "BPMN 2.0 Work Process design format: a diagram with its BPMN DI, 
 publish.workspace = true
 
 [dependencies]
-process = { package = "xmip-core-process", git = "https://github.com/IlleNilsson/xmip-core-process", branch = "main" }
-xcore = { package = "xmip-core", git = "https://github.com/IlleNilsson/xmip-core", branch = "main" }
-assign = { package = "xmip-core-assign", git = "https://github.com/IlleNilsson/xmip-core-assign", branch = "main" }
-path = { package = "xmip-core-path", git = "https://github.com/IlleNilsson/xmip-core-path", branch = "main" }
+process = { workspace = true }
+xcore = { workspace = true }
+assign = { workspace = true }
+# A sequence flow's condition is checked as Xmip's expression language reads
+# it, and a setting's value is one of its literals (ADR-0066, amendment
+# 2026-11-28).
+expression = { workspace = true }
 # The design read by the estate's one XML reader (`codec::xml::tree`), its
 # namespaces resolved; and a timer's ISO 8601 date and duration, read by the
 # estate's one calendar.
-codec = { package = "xmip-core-library-codec", git = "https://github.com/IlleNilsson/xmip-core-library-codec", branch = "main" }
+codec = { workspace = true }
 # The designer's view and edits cross to the runtime's exports as JSON.
 serde = { version = "1", features = ["derive"] }
 

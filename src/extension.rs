@@ -29,7 +29,7 @@
 //! design, so every Work Process following it agrees on them.
 
 use assign::{Assignment, AssignmentValue};
-use path::expression::Value;
+use expression::Value;
 use process::Refusal;
 use process::program::{Call, Due};
 use xcore::ScalarValue;
@@ -214,7 +214,7 @@ pub fn condition(flow: &Element) -> Result<Option<String>, Refusal> {
         ));
     }
     let text = expression.text.trim();
-    path::expression::Expression::parse(text)
+    expression::Expression::parse(text)
         .map(|_| Some(text.to_string()))
         .map_err(|why| Refusal::new(flow.label(), format!("its condition {why}")))
 }
